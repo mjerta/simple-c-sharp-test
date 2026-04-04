@@ -6,15 +6,21 @@ class Program
 {
     static void Main(string[] args)
     {
-        string token = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiYWRtaW4iOnRydWUsImlhdCI6MTUxNjIzOTAyMn0.KMUFsIDTnFmyG3nMiGM6H9FNFUROf3wh7SmqJp-QV30";
-        string tooShortToken = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiYWRtaW4iOnRydWUsIm51bWJlciI6MTIzLCJpYXQiOjE1MTYyMzkwMjJ9";
-        string wrongToken = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiYWRtaW4iOnRydWUsImlhdCI6MTUxNjIzOTAyMn0.SZa6AaZ0AAa89SllKXoMggxX14VBYEPr9Bazd6b5Jzs";
         string secret = "a-string-secret-at-least-256-bits-long";
+        string tokenInput = ExtractTokenFromArgs(args);
+        if (string.IsNullOrWhiteSpace(tokenInput))
+        {
+            Console.WriteLine("No token flag detected. Please paste your JWT token here:");
+            tokenInput = Console.ReadLine();
+        }
 
+        string tokenBeingUsed = SecureToken(tokenInput);
 
-        string tokenBeingUsed = wrongToken;
-
-
+        if (string.IsNullOrWhiteSpace(tokenBeingUsed))
+        {
+            Console.WriteLine("No token provided. Usage: mono DecodeJWT.exe -t <jwt-token>");
+            return;
+        }
 
         Console.WriteLine("\nCheck if the jwt is long enough in the first place...");
         if (!isPartLengthCorrect(tokenBeingUsed))
@@ -120,5 +126,26 @@ class Program
         }
         // If result is still 0, every single byte matched.
         return result == 0;
+    }
+
+    private static string SecureToken(string token)
+    {
+        if (string.IsNullOrWhiteSpace(token))
+        {
+            return null;
+        }
+
+        string trimmed = token.Trim();
+        return string.Copy(trimmed);
+    }
+
+    private static string ExtractTokenFromArgs(string[] args)
+    {
+        if (args != null && args.Length >= 2 && args[0] == "-t")
+        {
+            return args[1];
+        }
+
+        return null;
     }
 }

@@ -11,6 +11,7 @@ class DecodeJWTMicrosoftWay
 
     public static void Main(string[] args)
     {
+        System.IdentityModel.Tokens.JwtSecurityTokenHandler.InboundClaimTypeMap.Clear();
         string tokenBeingUsed = "";
         // Check for the -t flag
         if (args.Length >= 2 && args[0] == "-t")
@@ -32,11 +33,15 @@ class DecodeJWTMicrosoftWay
             Claim[] claims = ExtractClaims(tokenBeingUsed, secret);
             if (claims.Length > 0)
             {
-                Console.WriteLine("Claims extracted (Microsoft way):");
-                foreach (var claim in claims)
+                var claimsDict = new Dictionary<string, string>();
+                foreach (var c in claims)
                 {
-                    Console.WriteLine("Error: " + claim.Value);
+                    // Now 'c.Type' will be "sub" instead of the long URL
+                    claimsDict[c.Type] = c.Value;
                 }
+
+                string jsonOutput = Newtonsoft.Json.JsonConvert.SerializeObject(claimsDict);
+                Console.WriteLine(jsonOutput);
             }
         }
         else

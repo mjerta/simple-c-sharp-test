@@ -53,7 +53,7 @@ class GenerateJwt
         {
             var options = new Options
             {
-                Secret = "a-string-secret-at-least-256-bits-long",
+                Secret = "a-string-secret-at-least-256-bits-lon",
                 Issuer = "xpi",
                 Subject = "1234567890",
                 Name = "John Doe",
