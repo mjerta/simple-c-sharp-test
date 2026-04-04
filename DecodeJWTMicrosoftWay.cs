@@ -4,22 +4,30 @@ using System.IdentityModel.Tokens; // The official 4.5 namespace
 using System.Security.Claims;
 using System.Text;
 
-class DecodeMicrosoftWay
+class DecodeJWTMicrosoftWay
 {
+    private const string DefaultIssuer = "XPI";
+    private static string ErrorMessage = "";
+
     public static void Main(string[] args)
     {
-        string tokenWithExpAndIss = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJ4cGkiLCJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiYWRtaW4iOnRydWUsImlhdCI6MTc3NTMyNDYxMSwiZXhwIjoxNzc1MzI4MjExfQ.au4P-kXMBF10df6E4TCNf62MOYBGacHht8-TzvcFYbw";
-        string tokenWithExpOnly = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE3NDY0MDMyMDAsImlhdCI6MTc3Nzg1MjgwMCwic3ViIjoiMTIzNDU2Nzg5MCIsIm5hbWUiOiJKb2huIERvZSIsImFkbWluIjp0cnVlfQ.2jPUL-5EAlaUnbD7qLTKHkZjOfP1Rp4MWcD1PAPtHFI";
+        string tokenBeingUsed = "";
+        // Check for the -t flag
+        if (args.Length >= 2 && args[0] == "-t")
+        {
+            tokenBeingUsed = args[1];
+        }
+        else
+        {
+            Console.WriteLine("No token flag detected. Please paste your JWT token here:");
+            tokenBeingUsed = Console.ReadLine();
+        }
 
-        bool useTokenWithExpOnly = args != null && Array.Exists(args, a => a.Equals("--use-exp-only", StringComparison.OrdinalIgnoreCase));
-        string tokenBeingUsed = useTokenWithExpOnly ? tokenWithExpOnly : tokenWithExpAndIss;
         string secret = "a-string-secret-at-least-256-bits-long";
 
-        string validationMessage = VerifyTheMicrosoftWay(tokenBeingUsed, secret);
-        Console.WriteLine(validationMessage);
-        bool isValid = validationMessage.StartsWith("Token is valid", StringComparison.OrdinalIgnoreCase);
+        VerifyTheMicrosoftWay(tokenBeingUsed, secret);
 
-        if (isValid)
+        if (ErrorMessage.Length == 0)
         {
             Claim[] claims = ExtractClaims(tokenBeingUsed, secret);
             if (claims.Length > 0)
@@ -27,22 +35,25 @@ class DecodeMicrosoftWay
                 Console.WriteLine("Claims extracted (Microsoft way):");
                 foreach (var claim in claims)
                 {
-                    Console.WriteLine(" - " + claim.Type + ": " + claim.Value);
+                    Console.WriteLine("Error: " + claim.Value);
                 }
             }
         }
+        else
+        {
+            Console.WriteLine(ErrorMessage);
+        }
     }
 
-    public static string VerifyTheMicrosoftWay(string token, string secret)
+    public static void VerifyTheMicrosoftWay(string token, string secret)
     {
         try
         {
             ValidateTokenAndGetPrincipal(token, secret);
-            return "Token is valid (Microsoft way).";
         }
         catch (Exception ex)
         {
-            return "Validation error: " + ex.Message;
+            ErrorMessage = "Error: " + ex.Message;
         }
     }
 
@@ -76,19 +87,11 @@ class DecodeMicrosoftWay
             ValidateIssuerSigningKey = true,
             IssuerSigningKey = new InMemorySymmetricSecurityKey(key),
             ValidateIssuer = true,
-            ValidateAudience = false, // Update when you have a real audience
+            ValidIssuer = DefaultIssuer,
+            ValidateAudience = false,
             ValidateLifetime = true,
             RequireExpirationTime = true,
             ClockSkew = TimeSpan.FromMinutes(1),
-            IssuerValidator = (issuer, securityToken, parameters) =>
-            {
-                if (string.IsNullOrWhiteSpace(issuer))
-                {
-                    throw new SecurityTokenInvalidIssuerException("Issuer claim is required when ValidateIssuer is true.");
-                }
-
-                return issuer; // Accept any non-empty issuer for now
-            }
         };
 
         SecurityToken validatedToken;
