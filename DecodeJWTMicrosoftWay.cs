@@ -7,79 +7,50 @@ using System.Text;
 class DecodeJWTMicrosoftWay
 {
     private const string DefaultIssuer = "XPI";
-    private static string ErrorMessage = "";
 
     public static void Main(string[] args)
     {
         System.IdentityModel.Tokens.JwtSecurityTokenHandler.InboundClaimTypeMap.Clear();
-        string tokenBeingUsed = "";
-        // Check for the -t flag
-        if (args.Length >= 2 && args[0] == "-t")
+
+        string tokenInput = ExtractTokenFromArgs(args);
+        string tokenBeingUsed = SecureToken(tokenInput);
+
+        if (string.IsNullOrWhiteSpace(tokenBeingUsed))
         {
-            tokenBeingUsed = args[1];
-        }
-        else
-        {
-            Console.WriteLine("No token flag detected. Please paste your JWT token here:");
-            tokenBeingUsed = Console.ReadLine();
+            WriteError("No token provided.");
+            return;
         }
 
         string secret = "a-string-secret-at-least-256-bits-long";
 
-        VerifyTheMicrosoftWay(tokenBeingUsed, secret);
-
-        if (ErrorMessage.Length == 0)
-        {
-            Claim[] claims = ExtractClaims(tokenBeingUsed, secret);
-            if (claims.Length > 0)
-            {
-                var claimsDict = new Dictionary<string, string>();
-                foreach (var c in claims)
-                {
-                    // Now 'c.Type' will be "sub" instead of the long URL
-                    claimsDict[c.Type] = c.Value;
-                }
-
-                string jsonOutput = Newtonsoft.Json.JsonConvert.SerializeObject(claimsDict);
-                Console.WriteLine(jsonOutput);
-            }
-        }
-        else
-        {
-            Console.WriteLine(ErrorMessage);
-        }
-    }
-
-    public static void VerifyTheMicrosoftWay(string token, string secret)
-    {
         try
         {
-            ValidateTokenAndGetPrincipal(token, secret);
+            Claim[] claims = ExtractClaims(tokenBeingUsed, secret);
+            var claimsDict = new Dictionary<string, string>();
+            foreach (var c in claims)
+            {
+                claimsDict[c.Type] = c.Value;
+            }
+
+            string jsonOutput = Newtonsoft.Json.JsonConvert.SerializeObject(claimsDict);
+            Console.WriteLine(jsonOutput);
         }
         catch (Exception ex)
         {
-            ErrorMessage = "Error: " + ex.Message;
+            WriteError(ex.Message);
         }
     }
 
     public static Claim[] ExtractClaims(string token, string secret)
     {
-        try
+        ClaimsPrincipal principal = ValidateTokenAndGetPrincipal(token, secret);
+        var claims = new List<Claim>();
+        foreach (var claim in principal.Claims)
         {
-            ClaimsPrincipal principal = ValidateTokenAndGetPrincipal(token, secret);
-            var claims = new List<Claim>();
-            foreach (var claim in principal.Claims)
-            {
-                claims.Add(claim);
-            }
+            claims.Add(claim);
+        }
 
-            return claims.ToArray();
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine("Claim extraction error: " + ex.Message);
-            return new Claim[0];
-        }
+        return claims.ToArray();
     }
 
     private static ClaimsPrincipal ValidateTokenAndGetPrincipal(string token, string secret)
@@ -101,5 +72,80 @@ class DecodeJWTMicrosoftWay
 
         SecurityToken validatedToken;
         return tokenHandler.ValidateToken(token, validationParameters, out validatedToken);
+    }
+
+    private static string SecureToken(string token)
+    {
+        if (string.IsNullOrWhiteSpace(token))
+        {
+            return null;
+        }
+
+        string trimmed = token.Trim();
+        return string.Copy(trimmed);
+    }
+
+    private static string ExtractTokenFromArgs(string[] args)
+    {
+        if (args != null && args.Length >= 2 && args[0] == "-t")
+        {
+            return args[1];
+        }
+
+        return null;
+    }
+
+    private static void WriteError(string message)
+    {
+        Console.WriteLine("{\"error\":\"" + EscapeForJson(message) + "\"}");
+    }
+
+    private static string EscapeForJson(string value)
+    {
+        if (string.IsNullOrEmpty(value))
+        {
+            return string.Empty;
+        }
+
+        var builder = new StringBuilder(value.Length);
+        foreach (char c in value)
+        {
+            switch (c)
+            {
+                case '"':
+                    builder.Append("\\\"");
+                    break;
+                case '\\':
+                    builder.Append("\\\\");
+                    break;
+                case '\b':
+                    builder.Append("\\b");
+                    break;
+                case '\f':
+                    builder.Append("\\f");
+                    break;
+                case '\n':
+                    builder.Append("\\n");
+                    break;
+                case '\r':
+                    builder.Append("\\r");
+                    break;
+                case '\t':
+                    builder.Append("\\t");
+                    break;
+                default:
+                    if (char.IsControl(c))
+                    {
+                        builder.AppendFormat("\\u{0:x4}", (int)c);
+                    }
+                    else
+                    {
+                        builder.Append(c);
+                    }
+                    break;
+            }
+        }
+
+        return builder.ToString();
     }
 }
