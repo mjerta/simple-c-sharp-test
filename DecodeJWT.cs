@@ -1,5 +1,6 @@
 using System;
 using System.Text;
+using System.Globalization;
 using System.Security.Cryptography;
 
 class Program
@@ -7,47 +8,42 @@ class Program
     static void Main(string[] args)
     {
         string secret = "a-string-secret-at-least-256-bits-long";
-        string tokenInput = ExtractTokenFromArgs(args);
-        if (string.IsNullOrWhiteSpace(tokenInput))
+        try
         {
-            Console.WriteLine("No token flag detected. Please paste your JWT token here:");
-            tokenInput = Console.ReadLine();
+            string tokenInput = ExtractTokenFromArgs(args);
+
+            string tokenBeingUsed = SecureToken(tokenInput);
+
+            if (string.IsNullOrWhiteSpace(tokenBeingUsed))
+            {
+                WriteError("No token provided.");
+                return;
+            }
+
+            if (!isPartLengthCorrect(tokenBeingUsed))
+            {
+                WriteError("Token must contain header, payload, and signature (two dots).");
+                return;
+            }
+
+            if (!VerifyHS256(tokenBeingUsed, secret))
+            {
+                WriteError("Signature mismatch or invalid format.");
+                return;
+            }
+
+            if (!VerifyPayload(tokenBeingUsed))
+            {
+                return;
+            }
+
+            string payload = ExtractPayload(tokenBeingUsed);
+            Console.WriteLine(payload);
         }
-
-        string tokenBeingUsed = SecureToken(tokenInput);
-
-        if (string.IsNullOrWhiteSpace(tokenBeingUsed))
+        catch (Exception ex)
         {
-            Console.WriteLine("No token provided. Usage: mono DecodeJWT.exe -t <jwt-token>");
-            return;
+            WriteError(ex.Message);
         }
-
-        Console.WriteLine("\nCheck if the jwt is long enough in the first place...");
-        if (!isPartLengthCorrect(tokenBeingUsed))
-        {
-            Console.WriteLine("\nThe String was not with 2 dots.");
-            return;
-        }
-        else
-        {
-            Console.WriteLine("\nThe string was at least with 2 dots.");
-        }
-
-        Console.WriteLine("\nVerifying Signature...");
-        if (VerifyHS256(tokenBeingUsed, secret))
-        {
-            Console.WriteLine("SUCCESS: Signature matches!");
-        }
-        else
-        {
-            Console.WriteLine("FAILURE: Signature mismatch or invalid format.");
-            return;
-        }
-
-        Console.WriteLine("Decoding Payload...");
-        string payload = ExtractPayload(tokenBeingUsed);
-        Console.WriteLine("Payload: " + payload);
-
     }
 
 
@@ -59,16 +55,9 @@ class Program
 
     public static string ExtractPayload(string token)
     {
-        try
-        {
-            string[] parts = token.Split('.');
-            byte[] data = DecodeBase64UrlToBytes(parts[1]);
-            return Encoding.UTF8.GetString(data);
-        }
-        catch (Exception ex)
-        {
-            return "Error: " + ex.Message;
-        }
+        string[] parts = token.Split('.');
+        byte[] data = DecodeBase64UrlToBytes(parts[1]);
+        return Encoding.UTF8.GetString(data);
     }
     private static byte[] DecodeBase64UrlToBytes(string input)
     {
@@ -147,5 +136,118 @@ class Program
         }
 
         return null;
+    }
+
+    private static bool VerifyPayload(string token)
+    {
+        string payload = ExtractPayload(token);
+        if (string.IsNullOrEmpty(payload))
+        {
+            WriteError("Token payload missing.");
+            return false;
+        }
+
+        const string expKey = "\"exp\"";
+        int keyIndex = payload.IndexOf(expKey, StringComparison.Ordinal);
+        if (keyIndex == -1)
+        {
+            WriteError("Token missing exp claim.");
+            return false;
+        }
+
+        int colonIndex = payload.IndexOf(':', keyIndex + expKey.Length);
+        if (colonIndex == -1)
+        {
+            WriteError("Token exp claim malformed.");
+            return false;
+        }
+
+        int valueStart = colonIndex + 1;
+        while (valueStart < payload.Length && char.IsWhiteSpace(payload[valueStart]))
+        {
+            valueStart++;
+        }
+
+        int valueEnd = valueStart;
+        while (valueEnd < payload.Length && (char.IsDigit(payload[valueEnd]) || payload[valueEnd] == '-'))
+        {
+            valueEnd++;
+        }
+
+        if (valueEnd == valueStart)
+        {
+            WriteError("Token exp claim missing value.");
+            return false;
+        }
+
+        string numericText = payload.Substring(valueStart, valueEnd - valueStart);
+        if (!long.TryParse(numericText, NumberStyles.Integer, CultureInfo.InvariantCulture, out long expValue))
+        {
+            WriteError("Token exp claim invalid.");
+            return false;
+        }
+
+        long now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+        if (now >= expValue)
+        {
+            WriteError("Token already expired.");
+            return false;
+        }
+
+        return true;
+    }
+
+    private static void WriteError(string message)
+    {
+        Console.WriteLine("{\"error\":\"" + EscapeForJson(message) + "\"}");
+    }
+
+    private static string EscapeForJson(string value)
+    {
+        if (string.IsNullOrEmpty(value))
+        {
+            return string.Empty;
+        }
+
+        var builder = new StringBuilder(value.Length);
+        foreach (char c in value)
+        {
+            switch (c)
+            {
+                case '"':
+                    builder.Append("\\\"");
+                    break;
+                case '\\':
+                    builder.Append("\\\\");
+                    break;
+                case '\b':
+                    builder.Append("\\b");
+                    break;
+                case '\f':
+                    builder.Append("\\f");
+                    break;
+                case '\n':
+                    builder.Append("\\n");
+                    break;
+                case '\r':
+                    builder.Append("\\r");
+                    break;
+                case '\t':
+                    builder.Append("\\t");
+                    break;
+                default:
+                    if (char.IsControl(c))
+                    {
+                        builder.AppendFormat("\\u{0:x4}", (int)c);
+                    }
+                    else
+                    {
+                        builder.Append(c);
+                    }
+                    break;
+            }
+        }
+
+        return builder.ToString();
     }
 }
