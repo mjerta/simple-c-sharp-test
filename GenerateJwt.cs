@@ -6,11 +6,18 @@ class GenerateJwt
 {
     static void Main(string[] args)
     {
-        var options = Options.Parse(args);
+        var now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+        var options = new Options(
+            secret: "a-string-secret-at-least-256-bits-long",
+            issuer: "XPI",
+            subject: "1234567890",
+            issuedAt: now,
+            expiresAt: now + 3600);
+
         string secret = options.Secret;
 
         string headerJson = "{\"alg\":\"HS256\",\"typ\":\"JWT\"}";
-        string payloadJson = $"{{\"iss\":\"{options.Issuer}\",\"sub\":\"{options.Subject}\",\"name\":\"{options.Name}\",\"admin\":{options.Admin.ToString().ToLowerInvariant()},\"iat\":{options.IssuedAt},\"exp\":{options.ExpiresAt}}}";
+        string payloadJson = $"{{\"iss\":\"{options.Issuer}\",\"sub\":\"{options.Subject}\",\"iat\":{options.IssuedAt},\"exp\":{options.ExpiresAt}}}";
 
         string token = BuildToken(headerJson, payloadJson, secret);
 
@@ -41,83 +48,19 @@ class GenerateJwt
 
     private class Options
     {
-        public string Secret { get; private set; }
-        public string Issuer { get; private set; }
-        public string Subject { get; private set; }
-        public string Name { get; private set; }
-        public bool Admin { get; private set; }
-        public long IssuedAt { get; private set; }
-        public long ExpiresAt { get; private set; }
+        public string Secret { get; }
+        public string Issuer { get; }
+        public string Subject { get; }
+        public long IssuedAt { get; }
+        public long ExpiresAt { get; }
 
-        public static Options Parse(string[] args)
+        public Options(string secret, string issuer, string subject, long issuedAt, long expiresAt)
         {
-            var options = new Options
-            {
-                Secret = "a-string-secret-at-least-256-bits-lon",
-                Issuer = "xpi",
-                Subject = "1234567890",
-                Name = "John Doe",
-                Admin = true,
-                IssuedAt = UnixTimeNow(),
-                ExpiresAt = UnixTimeNow() + 3600
-            };
-
-            foreach (string arg in args)
-            {
-                var parts = arg.Split('=');
-                if (parts.Length != 2) continue;
-
-                string key = parts[0].TrimStart('-').ToLowerInvariant();
-                string value = parts[1];
-
-                switch (key)
-                {
-                    case "secret":
-                        options.Secret = value;
-                        break;
-                    case "iss":
-                    case "issuer":
-                        options.Issuer = value;
-                        break;
-                    case "sub":
-                    case "subject":
-                        options.Subject = value;
-                        break;
-                    case "name":
-                        options.Name = value;
-                        break;
-                    case "admin":
-                        if (bool.TryParse(value, out var admin))
-                        {
-                            options.Admin = admin;
-                        }
-                        break;
-                    case "iat":
-                        if (long.TryParse(value, out var iat))
-                        {
-                            options.IssuedAt = iat;
-                        }
-                        break;
-                    case "exp":
-                        if (long.TryParse(value, out var exp))
-                        {
-                            options.ExpiresAt = exp;
-                        }
-                        break;
-                }
-            }
-
-            if (options.ExpiresAt <= options.IssuedAt)
-            {
-                options.ExpiresAt = options.IssuedAt + 3600;
-            }
-
-            return options;
-        }
-
-        private static long UnixTimeNow()
-        {
-            return DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+            Secret = secret;
+            Issuer = issuer;
+            Subject = subject;
+            IssuedAt = issuedAt;
+            ExpiresAt = expiresAt;
         }
     }
 }
