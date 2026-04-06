@@ -7,12 +7,31 @@ class Program
 {
     static void Main(string[] args)
     {
-        string secret = "a-string-secret-at-least-256-bits-long";
         try
         {
-            string tokenInput = ExtractTokenFromArgs(args);
+            string secret = "a-string-secret-at-least-256-bits-long";
+            string tokenFromArgs = null;
+            string secretFromArgs = null;
 
-            string tokenBeingUsed = SecureToken(tokenInput);
+            for (int i = 0; i < args.Length; i++)
+            {
+                if (args[i] == "-t" && i + 1 < args.Length)
+                {
+                    tokenFromArgs = args[i + 1];
+                }
+                else if (args[i] == "-s" && i + 1 < args.Length)
+                {
+                    secretFromArgs = args[i + 1];
+                }
+            }
+
+            if (string.IsNullOrEmpty(tokenFromArgs))
+            {
+                Console.WriteLine("Usage:-t <token>, optional  -s <secret>");
+                return;
+            }
+            string tokenBeingUsed = SecureToken(tokenFromArgs);
+            string secretBeingUsed = secretFromArgs ?? secret;
 
             if (string.IsNullOrWhiteSpace(tokenBeingUsed))
             {
@@ -26,7 +45,7 @@ class Program
                 return;
             }
 
-            if (!VerifyHS256(tokenBeingUsed, secret))
+            if (!VerifyHS256(tokenBeingUsed, secretBeingUsed))
             {
                 WriteError("Signature mismatch or invalid format.");
                 return;
@@ -126,16 +145,6 @@ class Program
 
         string trimmed = token.Trim();
         return string.Copy(trimmed);
-    }
-
-    private static string ExtractTokenFromArgs(string[] args)
-    {
-        if (args != null && args.Length >= 2 && args[0] == "-t")
-        {
-            return args[1];
-        }
-
-        return null;
     }
 
     private static bool VerifyPayload(string token)

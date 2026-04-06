@@ -6,22 +6,50 @@ class GenerateJwt
 {
     static void Main(string[] args)
     {
-        var now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
-        var options = new Options(
-            secret: "a-string-secret-at-least-256-bits-long",
-            issuer: "XPI",
-            subject: "1234567890",
-            issuedAt: now,
-            expiresAt: now + 3600);
+        try
+        {
+            string defaultSecret = "a-string-secret-at-least-256-bits-long";
+            string subjectFromArgs = "";
+            string secretFromArgs = null;
 
-        string secret = options.Secret;
+            for (int i = 0; i < args.Length; i++)
+            {
+                if (args[i] == "-gib" && i + 1 < args.Length)
+                {
+                    subjectFromArgs = args[i + 1];
+                }
+                else if (args[i] == "-s" && i + 1 < args.Length)
+                {
+                    secretFromArgs = args[i + 1];
+                }
+            }
 
-        string headerJson = "{\"alg\":\"HS256\",\"typ\":\"JWT\"}";
-        string payloadJson = $"{{\"iss\":\"{options.Issuer}\",\"sub\":\"{options.Subject}\",\"iat\":{options.IssuedAt},\"exp\":{options.ExpiresAt}}}";
+            if (secretFromArgs.Length < 16)
+            {
+                throw new ArgumentException("The secret need to be at least 16 characters");
+            }
+            string secretBeingUsed = secretFromArgs ?? defaultSecret;
+            var now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+            var options = new Options(
+                secret: secretBeingUsed,
+                issuer: "XPI",
+                subject: subjectFromArgs,
+                issuedAt: now,
+                expiresAt: now + 3600);
 
-        string token = BuildToken(headerJson, payloadJson, secret);
+            string secret = options.Secret;
 
-        Console.WriteLine("Generated JWT:\n" + token);
+            string headerJson = "{\"alg\":\"HS256\",\"typ\":\"JWT\"}";
+            string payloadJson = $"{{\"iss\":\"{options.Issuer}\",\"sub\":\"{options.Subject}\",\"iat\":{options.IssuedAt},\"exp\":{options.ExpiresAt}}}";
+
+            string token = BuildToken(headerJson, payloadJson, secret);
+
+            Console.WriteLine(token);
+        }
+        catch (Exception ex)
+        {
+            WriteError(ex.Message);
+        }
     }
 
     private static string BuildToken(string headerJson, string payloadJson, string secret)
@@ -44,6 +72,60 @@ class GenerateJwt
             .TrimEnd('=')
             .Replace('+', '-')
             .Replace('/', '_');
+    }
+
+    private static void WriteError(string message)
+    {
+        Console.WriteLine("{\"error\":\"" + EscapeForJson(message) + "\"}");
+    }
+
+    private static string EscapeForJson(string value)
+    {
+        if (string.IsNullOrEmpty(value))
+        {
+            return string.Empty;
+        }
+
+        var builder = new StringBuilder(value.Length);
+        foreach (char c in value)
+        {
+            switch (c)
+            {
+                case '"':
+                    builder.Append("\\\"");
+                    break;
+                case '\\':
+                    builder.Append("\\\\");
+                    break;
+                case '\b':
+                    builder.Append("\\b");
+                    break;
+                case '\f':
+                    builder.Append("\\f");
+                    break;
+                case '\n':
+                    builder.Append("\\n");
+                    break;
+                case '\r':
+                    builder.Append("\\r");
+                    break;
+                case '\t':
+                    builder.Append("\\t");
+                    break;
+                default:
+                    if (char.IsControl(c))
+                    {
+                        builder.AppendFormat("\\u{0:x4}", (int)c);
+                    }
+                    else
+                    {
+                        builder.Append(c);
+                    }
+                    break;
+            }
+        }
+
+        return builder.ToString();
     }
 
     private class Options

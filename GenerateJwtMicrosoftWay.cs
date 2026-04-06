@@ -6,44 +6,78 @@ class GenerateJwtMicrosoftWay
 {
     static void Main(string[] args)
     {
-        var now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
-        var options = new Options(
-            secret: "a-string-secret-at-least-256-bits-long",
-            issuer: "XPI",
-            subject: "1234567890",
-            issuedAt: now,
-            expiresAt: now + 3600);
-
-        var tokenHandler = new JwtSecurityTokenHandler();
-        var keyBytes = Encoding.UTF8.GetBytes(options.Secret);
-        var securityKey = new InMemorySymmetricSecurityKey(keyBytes);
-        var signingCredentials = new SigningCredentials(
-            securityKey,
-            SecurityAlgorithms.HmacSha256Signature,
-            SecurityAlgorithms.Sha256Digest);
-
-        var header = new JwtHeader(signingCredentials);
-        object alg = null;
-        if (header.TryGetValue("alg", out var existingAlg))
+        try
         {
-            alg = existingAlg;
+            string secret = "a-string-secret-at-least-256-bits-long";
+            string subjectFromArgs = "";
+            string secretFromArgs = null;
+
+            for (int i = 0; i < args.Length; i++)
+            {
+                if (args[i] == "-gib" && i + 1 < args.Length)
+                {
+                    subjectFromArgs = args[i + 1];
+                }
+                else if (args[i] == "-s" && i + 1 < args.Length)
+                {
+                    secretFromArgs = args[i + 1];
+                }
+            }
+
+            string secretBeingUsed = secretFromArgs ?? secret;
+            var now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+            var options = new Options(
+                secret: secretBeingUsed,
+                issuer: "XPI",
+                subject: subjectFromArgs,
+                issuedAt: now,
+                expiresAt: now + 3600);
+
+            var tokenHandler = new JwtSecurityTokenHandler();
+            var keyBytes = Encoding.UTF8.GetBytes(options.Secret);
+            var securityKey = new InMemorySymmetricSecurityKey(keyBytes);
+            var signingCredentials = new SigningCredentials(
+                securityKey,
+                SecurityAlgorithms.HmacSha256Signature,
+                SecurityAlgorithms.Sha256Digest);
+
+            var header = new JwtHeader(signingCredentials);
+            object alg = null;
+            if (header.TryGetValue("alg", out var existingAlg))
+            {
+                alg = existingAlg;
+            }
+            header.Clear();
+            header.Add("alg", alg ?? signingCredentials.SignatureAlgorithm);
+            header.Add("typ", "JWT");
+
+            var payload = new JwtPayload
+            {
+                { "iss", options.Issuer },
+                { "sub", options.Subject },
+                { "iat", options.IssuedAt },
+                { "exp", options.ExpiresAt }
+            };
+
+            var securityToken = new JwtSecurityToken(header, payload);
+            string token = tokenHandler.WriteToken(securityToken);
+
+            Console.WriteLine(token);
         }
-        header.Clear();
-        header.Add("alg", alg ?? signingCredentials.SignatureAlgorithm);
-        header.Add("typ", "JWT");
-
-        var payload = new JwtPayload
+        catch (Exception ex)
         {
-            { "iss", options.Issuer },
-            { "sub", options.Subject },
-            { "iat", options.IssuedAt },
-            { "exp", options.ExpiresAt }
-        };
+            WriteError(ex.Message);
+        }
+    }
 
-        var securityToken = new JwtSecurityToken(header, payload);
-        string token = tokenHandler.WriteToken(securityToken);
+    private static void WriteError(string message)
+    {
+        string payload = Newtonsoft.Json.JsonConvert.SerializeObject(new
+        {
+            error = message ?? string.Empty
+        });
 
-        Console.WriteLine("Generated JWT (Microsoft way):\n" + token);
+        Console.WriteLine(payload);
     }
 
     private class Options

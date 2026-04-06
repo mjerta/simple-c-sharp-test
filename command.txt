@@ -1,4 +1,4 @@
-mcs -target:exe -out:DecodeJWTMicrosoftWay.exe DecodeJWTMicrosoftWay.cs -r:System.IdentityModel.Tokens.Jwt.dll -r:Microsoft.IdentityModel.Protocol.Extensions.dll -r:System.IdentityModel
+mcs -target:exe -out:DecodeJWTMicrosoftWay.exe DecodeJWTMicrosoftWay.cs -r:System.IdentityModel.Tokens.Jwt.dll -r:Microsoft.IdentityModel.Protocol.Extensions.dll -r:System.IdentityModel -r:Newtonsoft.Json.dll
 
 
 mcs -target:exe -out:GenerateJwtMicrosoftWay.exe GenerateJwtMicrosoftWay.cs -r:System.IdentityModel.Tokens.Jwt.dll -r:Microsoft.IdentityModel.Protocol.Extensions.dll -r:System.IdentityModel
